@@ -1,11 +1,12 @@
-name: Automatic build on release and push to Docker Hub
+name: Manual build and push to Docker Hub
 on:
-  push:
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
 jobs:
   main:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: ["main"]
     env:
       DOCKER_PLATFORMS: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/386
       DOCKER_IMAGE: mclueppers/haproxy-lua-base
@@ -32,6 +33,7 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
+
       - name: Check out repo
         id: checkout
         uses: actions/checkout@v2
@@ -39,11 +41,12 @@ jobs:
       - name: Prepare env variables
         id: env
         run: |
-          echo "BUILD_BRANCH=$(echo $GITHUB_REF | cut -d / -f 3 | cut -d. -f-2 | cut -d- -f1)" >> $GITHUB_ENV
-          echo "BUILD_VER=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_ENV
+          echo "BUILD_BRANCH=$(echo ${{ matrix.branch }})" >> $GITHUB_ENV
+          echo "BUILD_VER=$(awk '/^ENV HAPROXY_MINOR/ {print $NF}' ${{ matrix.branch }}/Dockerfile)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
           echo "GIT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
           echo "GIT_REF=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match)" >> $GITHUB_ENV
+
       - name: Build and push latest stable branch
         if: ${{ env.BUILD_BRANCH == env.STABLE_BRANCH }}
         id: docker_build_latest
